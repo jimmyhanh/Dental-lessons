@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {courses,resources,levels,filterCourses,recommend,courseProgress} from '../server/materials.js';
+import {art} from '../public/art.js';
+import {readFileSync} from 'node:fs';
+test('each level has published videos and an explicitly planned course',()=>{for(const level of levels){const list=filterCourses({level});assert.equal(list.length,2);assert.ok(list.some(c=>c.ready));assert.ok(list.some(c=>!c.ready));}});
+test('all course, lesson, video, and source references are valid',()=>{assert.equal(new Set(courses.map(c=>c.id)).size,courses.length);for(const c of courses){for(const id of c.resources)assert.ok(resources.find(r=>r.id===id));for(const l of c.lessons){if(l.type==='video'){assert.match(l.video,/^[\w-]{11}$/);assert.match(l.mp4,/^https:\/\/www\.cdc\.gov\/.+\.mp4$/);}if(l.type==='quiz')assert.ok(l.answer>=0&&l.answer<l.options.length);if(!c.ready)assert.equal(l.type,'planned');}}});
+test('filters combine level and search; no-match searches stay empty',()=>{assert.equal(filterCourses({level:'Advanced',query:'AI'}).length,1);assert.equal(filterCourses({query:'not-a-course'}).length,0);assert.equal(filterCourses({onlyIds:['safe-care']})[0].id,'safe-care');});
+test('guide returns relevant catalog IDs and handles out-of-scope questions',()=>{assert.equal(recommend('infection ppe').ids[0],'safe-care');assert.equal(recommend('AI artificial digital').ids[0],'dental-ai');assert.equal(recommend('unrelated astronomy weather').ids.length,0);});
+test('progress rejects foreign lesson keys, duplicates, and planned content',()=>{const c=courses[0];assert.equal(courseProgress(c,[]),0);assert.equal(courseProgress(c,['safe-care:0','safe-care:0','safe-care:50','oral-health:0']),33);assert.equal(courseProgress(c,c.lessons.map((_,i)=>`safe-care:${i}`)),100);assert.equal(courseProgress(courses.find(c=>!c.ready),['dental-anatomy:0']),0);});
+test('illustrations have unique gradient IDs with resolvable references',()=>{const markup=[art('anatomy',true),...courses.map(c=>art(c.art))].join('');const ids=[...markup.matchAll(/id="([^"]+)"/g)].map(m=>m[1]);assert.equal(ids.length,new Set(ids).size);for(const m of markup.matchAll(/url\(#([^)]+)\)/g))assert.ok(ids.includes(m[1]));});
+test('public preview explicitly communicates account setup status',async()=>{const {default:html}=await import('../server/shell.js');assert.match(html,/Account services aren’t connected yet/);assert.match(html,/generative AI is not connected/);});
