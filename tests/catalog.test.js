@@ -8,5 +8,13 @@ test('all course, lesson, video, and source references are valid',()=>{assert.eq
 test('filters combine level and search; no-match searches stay empty',()=>{assert.equal(filterCourses({level:'Advanced',query:'AI'}).length,1);assert.equal(filterCourses({query:'not-a-course'}).length,0);assert.equal(filterCourses({onlyIds:['safe-care']})[0].id,'safe-care');});
 test('guide returns relevant catalog IDs and handles out-of-scope questions',()=>{assert.equal(recommend('infection ppe').ids[0],'safe-care');assert.equal(recommend('AI artificial digital').ids[0],'dental-ai');assert.equal(recommend('unrelated astronomy weather').ids.length,0);});
 test('progress rejects foreign lesson keys, duplicates, and planned content',()=>{const c=courses[0];assert.equal(courseProgress(c,[]),0);assert.equal(courseProgress(c,['safe-care:0','safe-care:0','safe-care:50','oral-health:0']),33);assert.equal(courseProgress(c,c.lessons.map((_,i)=>`safe-care:${i}`)),100);assert.equal(courseProgress(courses.find(c=>!c.ready),['dental-anatomy:0']),0);});
-test('illustrations have unique gradient IDs with resolvable references',()=>{const markup=[art('anatomy',true),...courses.map(c=>art(c.art))].join('');const ids=[...markup.matchAll(/id="([^"]+)"/g)].map(m=>m[1]);assert.equal(ids.length,new Set(ids).size);for(const m of markup.matchAll(/url\(#([^)]+)\)/g))assert.ok(ids.includes(m[1]));});
+test('each course and the homepage have a distinct WebP illustration', () => {
+  const images = [art('anatomy', true), ...courses.map(course => art(course.art))];
+  assert.equal(new Set(images).size, images.length);
+  for (const image of images) {
+    const [, path] = image.match(/src="([^"]+\.webp)"/);
+    const file = readFileSync(new URL('../public' + path, import.meta.url));
+    assert.equal(file.toString('ascii', 8, 12), 'WEBP');
+  }
+});
 test('public preview explicitly communicates account setup status',async()=>{const {default:html}=await import('../server/shell.js');assert.match(html,/Account services aren’t connected yet/);assert.match(html,/generative AI is not connected/);});
